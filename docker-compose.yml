@@ -1,0 +1,15 @@
+services:
+ autogenerate_hosts:
+    build: .
+    hostname: autogenerate-hosts
+    container_name: autogenerate-hosts
+    restart: unless-stopped
+    volumes:
+      - "${DB_PATH}:${DB_PATH}"
+      - ./app:/app
+      - "${HOSTSFILE_PATH}:/dest"
+    env_file:
+      - .env
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
