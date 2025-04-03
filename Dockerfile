@@ -18,7 +18,7 @@ RUN apk update && apk upgrade && \
 # Install Ruby
 RUN apk add --no-cache ruby ruby-dev && \
     gem update --system && \
-    gem install bundler && \
+#    gem install bundler && \
     gem install sqlite3
 
 # Clean up
@@ -28,15 +28,13 @@ RUN rm -rf /var/cache/apk/* /tmp/* /usr/lib/ruby/gems/*/cache/*
 WORKDIR /app
 
 # Copy the Ruby script into the container
-COPY app/generate_hosts.rb app/Gemfile /app/
+COPY app/generate_hosts.rb /app/
 
 # Make the script executable
-RUN chmod +x /app/generate_hosts.rb
-RUN bundle install
+RUN gem install rb-inotify
 
 # Set the entrypoint to the Ruby script
-ENTRYPOINT ["bundle", "exec", "/app/generate_hosts.rb"]
-#ENTRYPOINT []
+ENTRYPOINT ["ruby", "/app/generate_hosts.rb"]
 
 # This will allow you to pass any additional arguments to the script
 CMD []

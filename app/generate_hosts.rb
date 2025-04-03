@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 require 'sqlite3'
 require 'json'
 require 'rb-inotify'
@@ -5,6 +7,7 @@ require 'rb-inotify'
 # Environment variables
 ip_address = ENV['TARGET_IP']
 domain_name = ENV['DOMAIN_NAME']
+external_domain = ENV['EXTERNAL_DOMAIN']
 dnsmasq_path = ENV['DNSMASQ_PATH']
 avahi_path = ENV['AVAHI_PATH']
 db_path = ENV['DB_PATH']
@@ -20,6 +23,11 @@ if domain_name.nil? || domain_name.empty?
   exit 1
 end
 
+if external_domain.nil? || external_domain.empty?
+  puts "Please set the EXTERNAL_DOMAIN environment variable."
+  exit 1
+end
+
 if dnsmasq_path.nil? || dnsmasq_path.empty?
   puts "Please set the DNSMASQ_PATH environment variable."
   exit 1
@@ -31,14 +39,23 @@ if db_path.nil? || db_path.empty?
 end
 
 # Function to generate hosts file
-def generate_hosts(ip_address, domain_name, dnsmasq_path, db_path)
+def generate_hosts(ip_address, domain_name, external_domain, dnsmasq_path, db_path)
   begin
     puts "Generating hosts file from database: #{db_path}"
     
     db = SQLite3::Database.open(db_path)
     rows = db.execute("SELECT domain_names FROM proxy_host")
-    hostnames = rows.flatten.map { |domains| JSON.parse(domains) }.flatten.uniq.reject { |hostname| hostname.include?('.') }
-
+    
+    # Process domain names
+    all_domains = rows.flatten.map { |domains| JSON.parse(domains) }.flatten.uniq
+    
+    # Separate domains into simple hostnames and those that end with the external domain
+    simple_hostnames = all_domains.reject { |hostname| hostname.include?('.') }
+    external_hostnames = all_domains.select { |hostname| hostname.end_with?(".#{external_domain}") }
+    
+    # Combine the filtered hostnames
+    hostnames = (simple_hostnames + external_hostnames).uniq
+    
     hostnames.sort!
 
     dnsmasq_hosts = <<END_OF_WARNING
@@ -49,7 +66,13 @@ def generate_hosts(ip_address, domain_name, dnsmasq_path, db_path)
 END_OF_WARNING
 
     hostnames.map do |hostname|
-      dnsmasq_hosts += "#{ip_address} #{hostname} #{hostname}.#{domain_name} #{hostname}.local\n"
+      if hostname.include?('.')
+        # This is an external domain name, don't add additional suffixes
+        dnsmasq_hosts += "#{ip_address} #{hostname}\n"
+      else
+        # This is a simple hostname, add all the suffixes
+        dnsmasq_hosts += "#{ip_address} #{hostname} #{hostname}.#{domain_name} #{hostname}.local\n"
+      end
     end
 
     File.open(dnsmasq_path, 'w') do |file|
@@ -66,7 +89,7 @@ END_OF_WARNING
 end
 
 # Generate hosts file initially
-generate_hosts(ip_address, domain_name, dnsmasq_path, db_path)
+generate_hosts(ip_address, domain_name, external_domain, dnsmasq_path, db_path)
 
 puts "Starting continuous monitoring of database file: #{db_path}"
 
@@ -74,7 +97,7 @@ puts "Starting continuous monitoring of database file: #{db_path}"
 notifier = INotify::Notifier.new
 notifier.watch(db_path, :modify, :close_write) do |event|
   puts "Database file changed at #{Time.now}. Regenerating hosts file..."
-  generate_hosts(ip_address, domain_name, dnsmasq_path, db_path)
+  generate_hosts(ip_address, domain_name, external_domain, dnsmasq_path, db_path)
 end
 
 # Main loop
