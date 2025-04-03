@@ -18,7 +18,7 @@ RUN apk update && apk upgrade && \
 # Install Ruby
 RUN apk add --no-cache ruby ruby-dev && \
     gem update --system && \
-    gem install bundler
+    gem install bundler && \
     gem install sqlite3
 
 # Clean up
