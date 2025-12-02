@@ -3,35 +3,34 @@ FROM alpine:latest
 # Install dependencies
 RUN apk update && apk upgrade && \
     apk add --no-cache \
-#    build-base \
-#    curl \
-#    git \
-#    libffi-dev \
-#    openssl-dev \
-#    readline-dev \
+    build-base \
     sqlite-dev \
     zlib-dev \
     sqlite \
     bash \
-    tzdata
+    tzdata \
+    ruby \
+    ruby-dev
 
-# Install Ruby
-RUN apk add --no-cache ruby ruby-dev && \
-    gem update --system && \
-#    gem install bundler && \
-    gem install sqlite3
-
-# Clean up
-RUN rm -rf /var/cache/apk/* /tmp/* /usr/lib/ruby/gems/*/cache/*
+# Update RubyGems and install bundler
+RUN gem update --system && \
+    gem install bundler
 
 # Create a directory for the app
 WORKDIR /app
 
-# Copy the Ruby script into the container
-COPY app/generate_hosts.rb /app/
+# Copy Gemfile first for better Docker layer caching
+COPY Gemfile /app/
 
-# Make the script executable
-RUN gem install rb-inotify
+# Install gems
+RUN bundle install --without test
+
+# Copy the Ruby scripts into the container
+COPY app/generate_hosts.rb /app/
+COPY app/lib /app/lib
+
+# Clean up
+RUN rm -rf /var/cache/apk/* /tmp/* /usr/lib/ruby/gems/*/cache/*
 
 # Set the entrypoint to the Ruby script
 ENTRYPOINT ["ruby", "/app/generate_hosts.rb"]
