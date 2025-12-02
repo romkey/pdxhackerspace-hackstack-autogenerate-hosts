@@ -74,12 +74,10 @@ jobs:
           bundler-cache: true
 
       - name: Install dependencies
-        run: |
-          cd app
-          gem install minitest
+        run: bundle install
 
       - name: Run tests
         run: |
           cd app
-          ruby test_domain_filter.rb
+          bundle exec ruby test_domain_filter.rb
 
