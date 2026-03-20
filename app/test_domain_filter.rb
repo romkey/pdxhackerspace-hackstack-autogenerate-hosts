@@ -120,13 +120,28 @@ class DomainFilterTest < Minitest::Test
   end
 
   def test_filter_external_domain_without_subdomain
-    # The external domain itself shouldn't match (it's ".example.org" not "example.org")
+    # Single-dot names are kept as internal names (including the external domain itself)
     filter = DomainFilter.new('example.org')
     domains = %w[example.org wiki.example.org]
     result = filter.filter(domains)
 
-    # example.org has a dot but doesn't end with ".example.org"
-    assert_equal ['wiki.example.org'], result
+    assert_equal %w[example.org wiki.example.org], result
+  end
+
+  def test_filter_internal_names_with_single_dot
+    # Internal names like "assets.cats" should be kept
+    domains = %w[assets.cats wiki app.internal mail.example.org]
+    result = @filter.filter(domains)
+
+    assert_equal %w[app.internal assets.cats mail.example.org wiki], result
+  end
+
+  def test_filter_excludes_multi_dot_external_domains
+    # Names with 2+ dots that don't match external domain should be excluded
+    domains = %w[wiki.other.com assets.cats mail.example.org test.foo.bar.net]
+    result = @filter.filter(domains)
+
+    assert_equal %w[assets.cats mail.example.org], result
   end
 
   def test_filter_case_sensitivity

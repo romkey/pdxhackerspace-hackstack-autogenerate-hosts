@@ -8,11 +8,17 @@ class DomainFilter
     @external_domain = external_domain
   end
 
-  # Filter domains to only include simple hostnames and those ending with external domain
+  # Filter domains:
+  # - Keep simple hostnames (no dots): wiki, gitlab
+  # - Keep hostnames ending with external domain: wiki.example.org
+  # - Keep internal names with single dot: assets.cats, app.internal
+  # - Exclude external FQDNs from other domains: wiki.other.com
   def filter(domains)
-    simple_hostnames = domains.reject { |hostname| hostname.include?('.') }
-    external_hostnames = domains.select { |hostname| hostname.end_with?(".#{@external_domain}") }
-    (simple_hostnames + external_hostnames).uniq.sort
+    domains.select do |hostname|
+      !hostname.include?('.') ||                        # Simple hostname
+        hostname.end_with?(".#{@external_domain}") ||   # Matches external domain
+        hostname.count('.') == 1                        # Internal name with single dot
+    end.uniq.sort
   end
 
   # Parse domain names from database rows
