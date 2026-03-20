@@ -23,11 +23,22 @@ class DatabaseWatcher
     @logger.info("Starting continuous monitoring of database file: #{@config.db_path}")
     setup_signal_handlers
 
+    db_dir = File.dirname(@config.db_path)
+    db_basename = File.basename(@config.db_path)
+    # SQLite WAL mode uses -wal and -shm files
+    watch_patterns = [db_basename, "#{db_basename}-wal", "#{db_basename}-shm"]
+
+    @logger.info("Watching directory #{db_dir} for changes to: #{watch_patterns.join(', ')}")
+
     notifier = INotify::Notifier.new
 
-    # Only watch close_write to avoid race conditions with partial writes
-    notifier.watch(@config.db_path, :close_write) do |_event|
-      handle_change
+    # Watch the directory for various write events
+    # SQLite in WAL mode writes to -wal file, then checkpoints to main db
+    notifier.watch(db_dir, :close_write, :modify, :moved_to) do |event|
+      if watch_patterns.include?(event.name)
+        @logger.debug("inotify event: #{event.flags.join(', ')} on #{event.name}")
+        handle_change
+      end
     end
 
     @logger.info("Watching for changes. Send SIGTERM or SIGINT to stop.")
@@ -39,13 +50,15 @@ class DatabaseWatcher
         notifier.process if ready
         process_pending_regeneration
       rescue Errno::EBADF, IOError => e
-        @logger.error("inotify watch failed (file deleted/moved?): #{e.message}")
+        @logger.error("inotify watch failed: #{e.message}")
         @logger.info("Attempting to re-establish watch in 5 seconds...")
         sleep 5
         notifier.close rescue nil
         notifier = INotify::Notifier.new
-        notifier.watch(@config.db_path, :close_write) { |_event| handle_change }
-        @logger.info("Watch re-established on #{@config.db_path}")
+        notifier.watch(db_dir, :close_write, :modify, :moved_to) do |event|
+          handle_change if watch_patterns.include?(event.name)
+        end
+        @logger.info("Watch re-established on #{db_dir}")
       end
     end
 
