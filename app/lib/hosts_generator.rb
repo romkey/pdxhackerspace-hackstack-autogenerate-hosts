@@ -24,7 +24,11 @@ class HostsGenerator
     @logger.info("Generating hosts file from database: #{@config.db_path}")
 
     hostnames = fetch_hostnames
+    @logger.debug("Filtered hostnames (#{hostnames.length}): #{hostnames.inspect}")
+
     content = build_hosts_content(hostnames)
+    @logger.debug("Generated hosts file content:\n#{content}")
+
     write_atomic(content)
 
     @logger.info("dnsmasq configuration file generated successfully at #{@config.dnsmasq_path}")
@@ -55,7 +59,11 @@ class HostsGenerator
   def fetch_hostnames
     db = SQLite3::Database.open(@config.db_path)
     rows = db.execute("SELECT domain_names FROM proxy_host WHERE is_deleted = 0")
+    @logger.debug("Raw database rows (#{rows.length}): #{rows.inspect}")
+
     all_domains = @domain_filter.parse_from_rows(rows)
+    @logger.debug("Parsed domains (#{all_domains.length}): #{all_domains.inspect}")
+
     @domain_filter.filter(all_domains)
   ensure
     db&.close
