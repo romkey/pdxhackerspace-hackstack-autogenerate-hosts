@@ -22,8 +22,9 @@ WORKDIR /app
 # Copy Gemfile first for better Docker layer caching
 COPY Gemfile /app/
 
-# Install gems
-RUN bundle install --without test
+# Install gems (excluding test group)
+RUN bundle config set --local without 'test' && \
+    bundle install
 
 # Copy the Ruby scripts into the container
 COPY app/generate_hosts.rb /app/
