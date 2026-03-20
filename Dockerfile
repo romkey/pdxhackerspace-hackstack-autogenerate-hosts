@@ -1,40 +1,18 @@
-FROM alpine:latest
+FROM ruby:3.2-alpine
 
-# Install dependencies
-RUN apk update && apk upgrade && \
-    apk add --no-cache \
-    build-base \
-    sqlite-dev \
-    zlib-dev \
-    sqlite \
-    bash \
-    tzdata \
-    ruby \
-    ruby-dev
+# Install runtime dependencies and build deps in one layer
+# Build native gems, then remove build dependencies to keep image small
+RUN apk add --no-cache sqlite-libs tzdata && \
+    apk add --no-cache --virtual .build-deps build-base sqlite-dev && \
+    gem install sqlite3 rb-inotify --no-document && \
+    apk del .build-deps && \
+    rm -rf /root/.gem /usr/local/bundle/cache
 
-# Update RubyGems and install bundler
-RUN gem update --system && \
-    gem install bundler
-
-# Create a directory for the app
 WORKDIR /app
 
-# Copy Gemfile first for better Docker layer caching
-COPY Gemfile /app/
-
-# Install gems (excluding test group)
-RUN bundle config set --local without 'test' && \
-    bundle install
-
-# Copy the Ruby scripts into the container
+# Copy application files
 COPY app/generate_hosts.rb /app/
 COPY app/lib /app/lib
 
-# Clean up
-RUN rm -rf /var/cache/apk/* /tmp/* /usr/lib/ruby/gems/*/cache/*
-
-# Set the entrypoint to the Ruby script
 ENTRYPOINT ["ruby", "/app/generate_hosts.rb"]
-
-# This will allow you to pass any additional arguments to the script
 CMD []
