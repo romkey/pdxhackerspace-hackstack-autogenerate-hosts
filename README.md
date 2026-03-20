@@ -30,7 +30,7 @@ Automatically generate a dnsmasq-compatible hosts file from nginx-proxy-manager'
 |----------|---------|-------------|
 | `LOCAL_SUFFIX` | `.local` | Suffix to add for mDNS-style names (set to empty to disable) |
 | `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR` |
-| `DEBOUNCE_SECONDS` | `1` | Seconds to wait after database change before regenerating |
+| `POLL_SECONDS` | `5` | How often to check for database changes |
 
 ## Docker Usage
 
@@ -62,8 +62,7 @@ See `docker-compose.yml` for an example configuration.
 3. **Generation**: Creates host entries:
    - Simple hostnames get multiple entries: `192.168.1.100 wiki wiki.hackerspace.lan wiki.local`
    - External domains get single entry: `192.168.1.100 wiki.example.org`
-4. **Watching**: Uses inotify to monitor the database file for changes
-5. **Debouncing**: Waits for the debounce period after changes before regenerating
+4. **Polling**: Checks the database file mtime periodically for changes (works across Docker containers)
 
 ## Development
 

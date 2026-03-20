@@ -2,67 +2,35 @@
 # frozen_string_literal: true
 
 require 'logger'
-require 'rb-inotify'
 require_relative 'lib/config'
 require_relative 'lib/domain_filter'
 require_relative 'lib/hosts_generator'
 
-# File watcher with debouncing
+# File watcher using polling (works across Docker container boundaries)
 class DatabaseWatcher
   def initialize(config, generator, logger)
     @config = config
     @generator = generator
     @logger = logger
-    @last_event_time = nil
-    @pending_regeneration = false
-    @mutex = Mutex.new
     @running = true
+    @last_mtime = nil
   end
 
   def start
     @logger.info("Starting continuous monitoring of database file: #{@config.db_path}")
+    @logger.info("Polling interval: #{@config.poll_seconds} seconds")
     setup_signal_handlers
 
-    db_dir = File.dirname(@config.db_path)
-    db_basename = File.basename(@config.db_path)
-    # SQLite WAL mode uses -wal and -shm files
-    watch_patterns = [db_basename, "#{db_basename}-wal", "#{db_basename}-shm"]
-
-    @logger.info("Watching directory #{db_dir} for changes to: #{watch_patterns.join(', ')}")
-
-    notifier = INotify::Notifier.new
-
-    # Watch the directory for various write events
-    # SQLite in WAL mode writes to -wal file, then checkpoints to main db
-    notifier.watch(db_dir, :close_write, :modify, :moved_to) do |event|
-      if watch_patterns.include?(event.name)
-        @logger.debug("inotify event: #{event.flags.join(', ')} on #{event.name}")
-        handle_change
-      end
-    end
+    # Get initial mtime
+    @last_mtime = get_mtime
 
     @logger.info("Watching for changes. Send SIGTERM or SIGINT to stop.")
 
-    # Main loop with graceful shutdown support
     while @running
-      begin
-        ready = IO.select([notifier.to_io], nil, nil, 1)
-        notifier.process if ready
-        process_pending_regeneration
-      rescue Errno::EBADF, IOError => e
-        @logger.error("inotify watch failed: #{e.message}")
-        @logger.info("Attempting to re-establish watch in 5 seconds...")
-        sleep 5
-        notifier.close rescue nil
-        notifier = INotify::Notifier.new
-        notifier.watch(db_dir, :close_write, :modify, :moved_to) do |event|
-          handle_change if watch_patterns.include?(event.name)
-        end
-        @logger.info("Watch re-established on #{db_dir}")
-      end
+      sleep @config.poll_seconds
+      check_for_changes
     end
 
-    notifier.close
     @logger.info("Monitoring stopped (received shutdown signal)")
   end
 
@@ -76,37 +44,33 @@ class DatabaseWatcher
       end
     end
 
-    # Log other signals that might indicate issues
     Signal.trap('HUP') do
-      @logger.info("Received SIGHUP (ignored)")
-    end
-  end
-
-  def handle_change
-    @mutex.synchronize do
-      @last_event_time = Time.now
-      @pending_regeneration = true
-      @logger.debug("Database change detected, debouncing...")
-    end
-  end
-
-  def process_pending_regeneration
-    should_regenerate = false
-
-    @mutex.synchronize do
-      if @pending_regeneration && @last_event_time
-        elapsed = Time.now - @last_event_time
-        if elapsed >= @config.debounce_seconds
-          should_regenerate = true
-          @pending_regeneration = false
-        end
-      end
-    end
-
-    if should_regenerate
-      @logger.info("Debounce period elapsed, regenerating hosts file...")
+      @logger.info("Received SIGHUP, forcing regeneration...")
       @generator.generate
     end
+  end
+
+  def get_mtime
+    # Check mtime of main db and WAL file (SQLite WAL mode)
+    files = [@config.db_path, "#{@config.db_path}-wal"]
+    mtimes = files.filter_map do |f|
+      File.mtime(f) if File.exist?(f)
+    end
+    mtimes.max
+  rescue Errno::ENOENT
+    nil
+  end
+
+  def check_for_changes
+    current_mtime = get_mtime
+
+    if current_mtime && current_mtime != @last_mtime
+      @logger.info("Database change detected (mtime: #{current_mtime})")
+      @last_mtime = current_mtime
+      @generator.generate
+    end
+  rescue StandardError => e
+    @logger.error("Error checking for changes: #{e.message}")
   end
 end
 

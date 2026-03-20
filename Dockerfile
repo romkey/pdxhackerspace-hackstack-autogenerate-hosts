@@ -4,7 +4,7 @@ FROM ruby:3.2-alpine
 # Build native gems, then remove build dependencies to keep image small
 RUN apk add --no-cache sqlite-libs tzdata && \
     apk add --no-cache --virtual .build-deps build-base sqlite-dev && \
-    gem install sqlite3 rb-inotify --no-document && \
+    gem install sqlite3 --no-document && \
     apk del .build-deps && \
     rm -rf /root/.gem /usr/local/bundle/cache
 

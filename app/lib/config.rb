@@ -6,11 +6,11 @@ class Config
   OPTIONAL_VARS = {
     'LOCAL_SUFFIX' => '.local',           # Set to empty string to disable
     'LOG_LEVEL' => 'INFO',                 # DEBUG, INFO, WARN, ERROR
-    'DEBOUNCE_SECONDS' => '1'              # Delay after file change before regenerating
+    'POLL_SECONDS' => '5'                  # How often to check for database changes
   }.freeze
 
   attr_reader :ip_address, :domain_name, :external_domain, :dnsmasq_path, :db_path,
-              :local_suffix, :log_level, :debounce_seconds
+              :local_suffix, :log_level, :poll_seconds
 
   def initialize(logger)
     @logger = logger
@@ -38,7 +38,7 @@ class Config
     # Optional with defaults
     @local_suffix = ENV.fetch('LOCAL_SUFFIX', OPTIONAL_VARS['LOCAL_SUFFIX'])
     @log_level = ENV.fetch('LOG_LEVEL', OPTIONAL_VARS['LOG_LEVEL']).upcase
-    @debounce_seconds = ENV.fetch('DEBOUNCE_SECONDS', OPTIONAL_VARS['DEBOUNCE_SECONDS']).to_f
+    @poll_seconds = ENV.fetch('POLL_SECONDS', OPTIONAL_VARS['POLL_SECONDS']).to_i
   end
 end
 
