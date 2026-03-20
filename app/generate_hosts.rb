@@ -34,7 +34,8 @@ class DatabaseWatcher
 
     # Main loop with graceful shutdown support
     while @running
-      notifier.process if notifier.readable?(1)
+      ready = IO.select([notifier.to_io], nil, nil, 1)
+      notifier.process if ready
       process_pending_regeneration
     end
 
