@@ -34,13 +34,23 @@ class DatabaseWatcher
 
     # Main loop with graceful shutdown support
     while @running
-      ready = IO.select([notifier.to_io], nil, nil, 1)
-      notifier.process if ready
-      process_pending_regeneration
+      begin
+        ready = IO.select([notifier.to_io], nil, nil, 1)
+        notifier.process if ready
+        process_pending_regeneration
+      rescue Errno::EBADF, IOError => e
+        @logger.error("inotify watch failed (file deleted/moved?): #{e.message}")
+        @logger.info("Attempting to re-establish watch in 5 seconds...")
+        sleep 5
+        notifier.close rescue nil
+        notifier = INotify::Notifier.new
+        notifier.watch(@config.db_path, :close_write) { |_event| handle_change }
+        @logger.info("Watch re-established on #{@config.db_path}")
+      end
     end
 
     notifier.close
-    @logger.info("Monitoring stopped")
+    @logger.info("Monitoring stopped (received shutdown signal)")
   end
 
   private
@@ -48,9 +58,14 @@ class DatabaseWatcher
   def setup_signal_handlers
     %w[INT TERM].each do |signal|
       Signal.trap(signal) do
-        @logger.info("Received #{signal}, shutting down gracefully...")
+        @logger.info("Received SIG#{signal}, shutting down gracefully...")
         @running = false
       end
+    end
+
+    # Log other signals that might indicate issues
+    Signal.trap('HUP') do
+      @logger.info("Received SIGHUP (ignored)")
     end
   end
 
