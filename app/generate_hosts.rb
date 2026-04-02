@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Disable stdout buffering for immediate log output in Docker
+$stdout.sync = true
+
 require 'logger'
 require_relative 'lib/config'
 require_relative 'lib/domain_filter'

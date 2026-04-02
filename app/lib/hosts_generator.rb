@@ -17,7 +17,7 @@ class HostsGenerator
   def initialize(config, logger)
     @config = config
     @logger = logger
-    @domain_filter = DomainFilter.new(config.external_domain)
+    @domain_filter = DomainFilter.new(config.external_domain, config.domain_name)
   end
 
   def generate

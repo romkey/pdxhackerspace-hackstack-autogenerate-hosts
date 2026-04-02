@@ -151,6 +151,15 @@ class DomainFilterTest < Minitest::Test
 
     assert_equal %w[WIKI Wiki wiki], result
   end
+
+  def test_filter_with_internal_domain
+    # When internal domain is set, hostnames ending with it should be kept
+    filter = DomainFilter.new('example.org', 'staging.ctrlh')
+    domains = %w[npm.staging.ctrlh members.staging.ctrlh wiki.example.org wiki.other.com simple]
+    result = filter.filter(domains)
+
+    assert_equal %w[members.staging.ctrlh npm.staging.ctrlh simple wiki.example.org], result
+  end
 end
 
 class HostsGeneratorContentTest < Minitest::Test
