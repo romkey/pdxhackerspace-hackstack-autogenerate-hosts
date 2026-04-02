@@ -16,7 +16,7 @@ class DomainFilter
   def filter(domains)
     domains.select do |hostname|
       !hostname.include?('.') ||                        # Simple hostname
-        hostname.end_with?(".#{@external_domain}") ||   # Matches external domain
+        hostname.end_with?(".#{@external_domain}")      # Matches external domain
 #        hostname.count('.') == 1                        # Internal name with single dot
     end.uniq.sort
   end
