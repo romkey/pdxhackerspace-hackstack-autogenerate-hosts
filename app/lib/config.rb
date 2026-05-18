@@ -6,11 +6,12 @@ class Config
   OPTIONAL_VARS = {
     'LOCAL_SUFFIX' => '.local',           # Set to empty string to disable
     'LOG_LEVEL' => 'INFO',                 # DEBUG, INFO, WARN, ERROR
-    'POLL_SECONDS' => '5'                  # How often to check for database changes
+    'POLL_SECONDS' => '5',                 # How often to check for database changes
+    'FILE_MODE' => '644'                   # Octal permissions for generated hosts file
   }.freeze
 
   attr_reader :ip_address, :domain_name, :external_domain, :dnsmasq_path, :db_path,
-              :local_suffix, :log_level, :poll_seconds
+              :local_suffix, :log_level, :poll_seconds, :file_mode
 
   def initialize(logger)
     @logger = logger
@@ -39,6 +40,15 @@ class Config
     @local_suffix = ENV.fetch('LOCAL_SUFFIX', OPTIONAL_VARS['LOCAL_SUFFIX'])
     @log_level = ENV.fetch('LOG_LEVEL', OPTIONAL_VARS['LOG_LEVEL']).upcase
     @poll_seconds = ENV.fetch('POLL_SECONDS', OPTIONAL_VARS['POLL_SECONDS']).to_i
+    @file_mode = parse_file_mode(ENV.fetch('FILE_MODE', OPTIONAL_VARS['FILE_MODE']))
+  end
+
+  def parse_file_mode(value)
+    mode = value.to_s.strip.to_i(8)
+    return mode unless mode.zero?
+
+    @logger.error("Invalid FILE_MODE: #{value.inspect} (use octal digits, e.g. 644)")
+    exit 1
   end
 end
 

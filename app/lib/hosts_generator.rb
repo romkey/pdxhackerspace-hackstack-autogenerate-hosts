@@ -88,6 +88,7 @@ class HostsGenerator
       temp.flush
       temp.close
       FileUtils.mv(temp.path, @config.dnsmasq_path)
+      File.chmod(@config.file_mode, @config.dnsmasq_path)
     end
   end
 end
