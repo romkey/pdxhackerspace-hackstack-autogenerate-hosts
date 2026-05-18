@@ -4,8 +4,10 @@
 require 'minitest/autorun'
 
 # Load only the testable classes (no inotify dependency)
+require 'time'
 require_relative 'lib/domain_filter'
 require_relative 'lib/hosts_generator'
+require_relative 'lib/version'
 
 class DomainFilterTest < Minitest::Test
   def setup
@@ -223,5 +225,14 @@ class HostsGeneratorContentTest < Minitest::Test
     line = generator.build_host_line('wiki')
 
     assert_equal "192.168.1.100 wiki wiki.hackerspace.lan wiki.home\n", line
+  end
+
+  def test_build_header_includes_timestamp_and_version
+    generator = HostsGenerator.new(@config, @logger)
+    at = Time.new(2026, 5, 18, 15, 30, 45, '-07:00')
+    header = generator.build_header(generated_at: at)
+
+    assert_match(/# Generated: Monday, May 18, 2026 at 03:30:45 PM/, header)
+    assert_includes header, "# Generator version: #{AutogenerateHosts::VERSION}"
   end
 end
